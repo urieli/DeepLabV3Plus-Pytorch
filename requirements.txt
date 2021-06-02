@@ -6,3 +6,5 @@ scikit-learn
 tqdm
 matplotlib
 visdom
+tensorboard>=2.0.0
+tensorboardX>=2.2

@@ -14,6 +14,7 @@ from metrics import StreamSegMetrics
 import torch
 import torch.nn as nn
 from utils.visualizer import Visualizer
+from tensorboardX import SummaryWriter
 
 from PIL import Image
 import matplotlib
@@ -82,9 +83,12 @@ def get_argparser():
     parser.add_argument("--year", type=str, default='2012',
                         choices=['2012_aug', '2012', '2011', '2009', '2008', '2007'], help='year of VOC')
 
-    # Visdom options
-    parser.add_argument("--enable_vis", action='store_true', default=False,
-                        help="use visdom for visualization")
+    # Visualization options
+    parser.add_argument("--visualizer", type=str, default='none',
+                        choices=['none', 'visdom', 'tensorboard'],
+                        help="Which visualization technology to use: none, visdom, tensorboard")
+    parser.add_argument("--log_dir", type=str, default=None,
+                        help="Tensorboard log dir")
     parser.add_argument("--vis_port", type=str, default='13570',
                         help='port for visdom')
     parser.add_argument("--vis_env", type=str, default='main',
@@ -238,10 +242,13 @@ def main():
         opts.num_classes = 3
 
     # Setup visualization
+    
     vis = Visualizer(port=opts.vis_port,
-                     env=opts.vis_env) if opts.enable_vis else None
+                     env=opts.vis_env) if opts.visualizer == 'visdom' else None
     if vis is not None:  # display options
         vis.vis_table("Options", vars(opts))
+    
+    tensorbaord = SummaryWriter(logdir=opts.log_dir) if opts.visualizer == 'tensorboard' else None
 
     os.environ['CUDA_VISIBLE_DEVICES'] = opts.gpu_id
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -339,7 +346,9 @@ def main():
 
     #==========   Train Loop   ==========#
     vis_sample_id = np.random.randint(0, len(val_loader), opts.vis_num_samples,
-                                      np.int32) if opts.enable_vis else None  # sample idxs for visualization
+                                      np.int32) if vis is not None or tensorbaord is not None else None  # sample idxs for visualization
+    print(f'vis_sample_id: {vis_sample_id}')
+    
     denorm = utils.Denormalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])  # denormalization for ori images
 
     if opts.test_only:
@@ -370,6 +379,8 @@ def main():
             interval_loss += np_loss
             if vis is not None:
                 vis.vis_scalar('Loss', cur_itrs, np_loss)
+            elif tensorbaord is not None:
+                tensorbaord.add_scalar('Loss', np_loss, cur_itrs)
 
             if (cur_itrs) % 10 == 0:
                 interval_loss = interval_loss/10
@@ -401,6 +412,19 @@ def main():
                         lbl = train_dst.decode_target(lbl).transpose(2, 0, 1).astype(np.uint8)
                         concat_img = np.concatenate((img, target, lbl), axis=2)  # concat along width
                         vis.vis_image('Sample %d' % k, concat_img)
+                elif tensorbaord is not None:
+                    tensorbaord.add_scalar("[Val] Overall Acc", val_score['Overall Acc'], cur_itrs)
+                    tensorbaord.add_scalar("[Val] Mean IoU", val_score['Mean IoU'], cur_itrs)
+                    for key, value in val_score['Class IoU'].items():
+                        tensorbaord.add_scalar(f"[Val] Class IoU {key}", value, cur_itrs)
+
+                    for k, (img, target, lbl) in enumerate(ret_samples):
+                        img = (denorm(img) * 255).astype(np.uint8)
+                        target = train_dst.decode_target(target).transpose(2, 0, 1).astype(np.uint8)
+                        lbl = train_dst.decode_target(lbl).transpose(2, 0, 1).astype(np.uint8)
+                        concat_img = np.concatenate((img, target, lbl), axis=2)  # concat along width
+                        tensorbaord.add_image('Sample %d' % k, concat_img, cur_itrs)
+                    
                 model.train()
             scheduler.step()  
 

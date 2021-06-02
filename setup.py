@@ -17,7 +17,9 @@ setup(
     "tqdm>=4.54.1",
     "scikit-learn>=0.23.2",
     "matplotlib>=3.3.3",
-    "visdom>=0.1.8.9"
+    "visdom>=0.1.8.9",
+    "tensorboard>=2.0.0",
+    "tensorboardX>=2.2"
   ],
   zip_safe=False,
 )
