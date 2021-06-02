@@ -74,10 +74,10 @@ class CustomSegmentation(data.Dataset):
         if self.transform:
             image, target = self.transform(image, target)
         
-        print(f"Image: {self.images[index]}")
-        print(f"Mask:  {self.targets[index]}")
-        print(f"Non zeros: {torch.count_nonzero(target)}")
-        print(f"bincount: {torch.bincount(torch.flatten(target))}")
+        #print(f"Image: {self.images[index]}")
+        #print(f"Mask:  {self.targets[index]}")
+        #print(f"Non zeros: {torch.count_nonzero(target)}")
+        #print(f"bincount: {torch.bincount(torch.flatten(target))}")
 
         target = self.encode_target(target)
         return image, target
